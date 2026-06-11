@@ -3,6 +3,7 @@
 #include <esp_log.h>
 #include <driver/i2c_master.h>
 #include <driver/i2s_tdm.h>
+#include <driver/i2s_pdm.h>
 
 #include "config.h"
 
@@ -32,6 +33,11 @@ Tcircles3AudioCodec::Tcircles3AudioCodec(int input_sample_rate, int output_sampl
     gpio_config(&config);
     gpio_set_level(AUDIO_SPKR_ENABLE, 0);
     ESP_LOGI(TAG, "Tcircles3AudioCodec initialized");
+#ifdef CONFIG_BOARD_TYPE_LILYGO_T_CIRCLE_S3_V1_1
+    ESP_LOGI(TAG, "Board version: V1.1");
+#else
+    ESP_LOGI(TAG, "Board version: V1.0");
+#endif
 }
 
 Tcircles3AudioCodec::~Tcircles3AudioCodec() {
@@ -46,14 +52,15 @@ Tcircles3AudioCodec::~Tcircles3AudioCodec() {
 void Tcircles3AudioCodec::CreateVoiceHardware(gpio_num_t mic_bclk, gpio_num_t mic_ws, gpio_num_t mic_data,
     gpio_num_t spkr_bclk, gpio_num_t spkr_lrclk, gpio_num_t spkr_data) {
     
-    i2s_chan_config_t mic_chan_config = I2S_CHANNEL_DEFAULT_CONFIG(i2s_port_t(0), I2S_ROLE_MASTER);
+    i2s_chan_config_t mic_chan_config = I2S_CHANNEL_DEFAULT_CONFIG(I2S_NUM_0, I2S_ROLE_MASTER);
     mic_chan_config.auto_clear = true; // Auto clear the legacy data in the DMA buffer
-    i2s_chan_config_t spkr_chan_config = I2S_CHANNEL_DEFAULT_CONFIG(i2s_port_t(1), I2S_ROLE_MASTER);
+    i2s_chan_config_t spkr_chan_config = I2S_CHANNEL_DEFAULT_CONFIG(I2S_NUM_1, I2S_ROLE_MASTER);
     spkr_chan_config.auto_clear = true; // Auto clear the legacy data in the DMA buffer
 
     ESP_ERROR_CHECK(i2s_new_channel(&mic_chan_config, NULL, &rx_handle_));
     ESP_ERROR_CHECK(i2s_new_channel(&spkr_chan_config, &tx_handle_, NULL));
 
+#ifdef CONFIG_BOARD_TYPE_LILYGO_T_CIRCLE_S3
     i2s_std_config_t mic_config = {
         .clk_cfg = {
             .sample_rate_hz = (uint32_t)output_sample_rate_,
@@ -77,6 +84,24 @@ void Tcircles3AudioCodec::CreateVoiceHardware(gpio_num_t mic_bclk, gpio_num_t mi
             }
         }
     };
+
+    ESP_ERROR_CHECK(i2s_channel_init_std_mode(rx_handle_, &mic_config));
+#elif defined CONFIG_BOARD_TYPE_LILYGO_T_CIRCLE_S3_V1_1
+    i2s_pdm_rx_config_t mic_config = {
+        .clk_cfg = I2S_PDM_RX_CLK_DEFAULT_CONFIG(static_cast<uint32_t>(input_sample_rate_)),
+        /* The data bit-width of PDM mode is fixed to 16 */
+        .slot_cfg = I2S_PDM_RX_SLOT_DEFAULT_CONFIG(I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_MONO),
+        .gpio_cfg = {
+            .clk = mic_ws,
+            .din = mic_data,
+            .invert_flags = {
+                .clk_inv = false,
+            },
+        },
+    };
+
+    ESP_ERROR_CHECK(i2s_channel_init_pdm_rx_mode(rx_handle_, &mic_config));
+#endif
 
     i2s_std_config_t spkr_config = {
         .clk_cfg ={
@@ -102,7 +127,6 @@ void Tcircles3AudioCodec::CreateVoiceHardware(gpio_num_t mic_bclk, gpio_num_t mi
         }
     };
 
-    ESP_ERROR_CHECK(i2s_channel_init_std_mode(rx_handle_, &mic_config));
     ESP_ERROR_CHECK(i2s_channel_init_std_mode(tx_handle_, &spkr_config));
     ESP_LOGI(TAG, "Voice hardware created");
 }
@@ -126,9 +150,16 @@ void Tcircles3AudioCodec::EnableOutput(bool enable) {
 }
 
 int Tcircles3AudioCodec::Read(int16_t *dest, int samples){
-    if (input_enabled_){
+    if (input_enabled_) {
         size_t bytes_read;
         i2s_channel_read(rx_handle_, dest, samples * sizeof(int16_t), &bytes_read, portMAX_DELAY);
+        
+        // 麦克风接收音量放大20倍（限制在 int16_t 范围内防止溢出）
+        int16_t *ptr = dest;
+        for (int i = 0; i < samples; i++) {
+            int32_t amplified = *ptr * 20;
+            *ptr++ = (amplified > 32767) ? 32767 : (amplified < -32768) ? -32768 : amplified;
+        }
     }
     return samples;
 }

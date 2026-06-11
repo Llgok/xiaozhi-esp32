@@ -7,16 +7,28 @@
  */
 #pragma once
 
+#ifdef CONFIG_BOARD_TYPE_LILYGO_T_CIRCLE_S3
+#define T_Circle_S3_V1_0
+#elif defined CONFIG_BOARD_TYPE_LILYGO_T_CIRCLE_S3_V1_1
+#define T_Circle_S3_V1_1
+#endif
+
 // MAX98357A
 #define MAX98357A_BCLK 5
 #define MAX98357A_LRCLK 4
 #define MAX98357A_DATA 6
 #define MAX98357A_SD_MODE 45
 
+#ifdef T_Circle_S3_V1_0
 // MSM261
 #define MSM261_BCLK 7
 #define MSM261_WS 9
 #define MSM261_DATA 8
+#elif defined T_Circle_S3_V1_1
+// MP34DT05TR
+#define MP34DT05TR_LRCLK 9
+#define MP34DT05TR_DATA 8
+#endif
 
 // APA102
 #define APA102_DATA 38
