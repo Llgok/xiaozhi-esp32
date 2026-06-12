@@ -330,6 +330,12 @@ choice BOARD_TYPE
     config BOARD_TYPE_LILYGO_T_DISPLAY_S3_PRO_MVSRLORA_NO_BATTERY
         bool "LILYGO T-Display-S3-Pro-MVSRLora_No_Battery"
         depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_LILYGO_T_DISPLAY_S3_PRO_MVSRBOARD_V1_0
+        bool "LILYGO T-Display-S3-Pro-MVSRBoard_V1_0"
+        depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_LILYGO_T_DISPLAY_S3_PRO_MVSRBOARD_V1_1
+        bool "LILYGO T-Display-S3-Pro-MVSRBoard_V1_1"
+        depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_LILYGO_T_DISPLAY_P4
         bool "LILYGO T-Display-P4"
         depends on IDF_TARGET_ESP32P4
